@@ -18,6 +18,9 @@
 
 // TODO localStorage Read & Write
 // - [] localStorage에 데이터를 저장한다. write
+// - [] 메뉴를 수정할 때 저장
+// - [] 메뉴를 추가할 때 저장
+// - [] 메뉴를 삭제할 때 저장
 // - [] 새로고침하면 localStorage에 있는 데이터를 읽어온다. read
 
 // TODO 카테고리별 메뉴판 관리
@@ -45,6 +48,7 @@ const store = {
         localStorage.getItem('menu');
     },
 };
+// setStorage로 다이렉트로 하지 않고 store 객체를 만들어준 이유? 상태 변경은 최소한의 light한 로직을 만들어서 써야함. 꼬일 수 있다.
 
 function App() {
     // 상태(변할 수 있는 데이터) - 메뉴명 (개수는 굳이 저장하고 읽어오며 관리할 대상이 아님)
@@ -63,10 +67,11 @@ function App() {
 
         const espressoMenuName = $('#espresso-menu-name').value;
         this.menu.push({ name: espressoMenuName });
+        store.setLocalStorage(this.menu); // 상태가 변경되면 바로 저장하기.
         const template = this.menu
-            .map((item) => {
-                return `<li class="menu-list-item d-flex items-center py-2"><span class="w-100 pl-2 menu-name">
-          ${item.name}</span>
+            .map((menuItem, index) => {
+                return `<li data-menu-id="${index}" class="menu-list-item d-flex items-center py-2"><span class="w-100 pl-2 menu-name">
+          ${menuItem.name}</span>
           <button
           type="button"
           class="bg-gray-50 text-gray-500 text-sm mr-1 menu-edit-button"
@@ -84,25 +89,7 @@ function App() {
             .join('');
         // join이 ["<li>~</li>", "<li>~</li>"]; 이걸 <li>~</li><li>~</li> 이런식으로 붙여줌.
 
-        const menuItemTemplate = (espressoMenuName) => {
-            return `<li class="menu-list-item d-flex items-center py-2"><span class="w-100 pl-2 menu-name">
-          ${espressoMenuName}</span>
-          <button
-          type="button"
-          class="bg-gray-50 text-gray-500 text-sm mr-1 menu-edit-button"
-          >
-          수정
-          </button>
-          <button
-          type="button"
-          class="bg-gray-50 text-gray-500 text-sm menu-remove-button"
-          >
-          삭제
-          </button>
-          </li>`;
-        };
-        $('#espresso-menu-list').insertAdjacentHTML('beforeend', menuItemTemplate(espressoMenuName));
-        // console.log($('#espresso-menu-name').value);
+        $('#espresso-menu-list').innerHTML = template;
         updateMenuCount();
         $('#espresso-menu-name').value = ''; // 입력창을 비워줌.
     };
@@ -111,10 +98,13 @@ function App() {
         // addMenuName과 통일성
         // html 코드에 수정 버튼이 없으므로 이벤트 위임함.
         // class를 배열처럼 가져올 수 있는 classList 메서드. contains 메서드는 해당 클래스 name이 있는지 확인.
-        // console.log(e.target);
+
+        const menuId = e.target.closest('li').dataset.menuId; // 속성을 dataset으로 가져올 수 있음. menuId는 인덱스.
         const $menuName = e.target.closest('li').querySelector('.menu-name');
         // 가장 가까운 li태그 가져오기.
         const updatedMenuName = prompt('메뉴명을 수정해주세요', $menuName.innerText);
+        this.menu[menuId].name = updatedMenuName;
+        store.setLocalStorage(this.menu);
         $menuName.innerText = updatedMenuName;
         // 변수명이 길어도 의미가 명확하면 괜찮다.
     };
@@ -157,7 +147,7 @@ function App() {
     });
 }
 
-App();
+const app = new App();
 
 // refactoring
 // 재사용하는 함수는 한 곳에 모아주기
