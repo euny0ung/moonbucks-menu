@@ -39,18 +39,8 @@
 // - [] 품절 버튼을 클릭하면 localStorage에 상태값이 저장된다.
 // - [] 클릭 이벤트에서 가장 가까운 li태그의 class 속성 값에 sold-out을 추가한다.
 
-const $ = (selector) => document.querySelector(selector);
-// 달러 표시는 보통 html의 element를 가져올 때 쓰는 관용적 표현. =>로 바로 씀 (저걸 리턴해 준다는 이야기)
-
-const store = {
-    setLocalStorage(menu) {
-        localStorage.setItem('menu', JSON.stringify(menu));
-    },
-    getLocalStorage() {
-        return JSON.parse(localStorage.getItem('menu')); // 문자열로 저장된걸 다시 json 객체 형태로 만들어줌. 문자열은 배열이 아니므로 순회하지 못한다.
-    },
-};
-// setStorage로 다이렉트로 하지 않고 store 객체를 만들어준 이유? 상태 변경은 최소한의 light한 로직을 만들어서 써야함. 꼬일 수 있다.
+import { $ } from './utils/dom.js';
+import store from './store/index.js';
 
 function App() {
     // 상태(변할 수 있는 데이터) - 메뉴명 (개수는 굳이 저장하고 읽어오며 관리할 대상이 아님)
@@ -71,6 +61,7 @@ function App() {
             this.menu = store.getLocalStorage();
         }
         render();
+        initEventListeners(); // 초기화할때 render와 이벤트 리스너 실행
     };
 
     const render = () => {
@@ -109,7 +100,7 @@ function App() {
     };
 
     const updateMenuCount = () => {
-        const menuCount = $('#menu-list').querySelectorAll('li').length; // 그냥 querySelector이라고 하면 맨 첫번째 li 태그만 가져옴.
+        const menuCount = this.menu[this.currentCategory].length; // 그냥 querySelector이라고 하면 맨 첫번째 li 태그만 가져옴.
         $('.menu-count').innerText = `총 ${menuCount}개`;
     };
 
@@ -137,7 +128,7 @@ function App() {
         const updatedMenuName = prompt('메뉴명을 수정해주세요', $menuName.innerText);
         this.menu[this.currentCategory][menuId].name = updatedMenuName;
         store.setLocalStorage(this.menu);
-        $menuName.innerText = updatedMenuName;
+        render();
         // 변수명이 길어도 의미가 명확하면 괜찮다.
     };
 
@@ -146,8 +137,7 @@ function App() {
         this.menu[this.currentCategory].splice(menuId, 1); // 배열의 특정 원소를 삭제하는 메소드. 삭제 후 결과를 반환한다.
         // const a = this.menu.splice(menuId,1) 이렇게 하면 삭제된 원소가 반환됨.
         store.setLocalStorage(this.menu);
-        e.target.closest('li').remove();
-        updateMenuCount();
+        render();
     };
 
     const soldOutMenu = (e) => {
@@ -157,59 +147,62 @@ function App() {
         render(); // soldout된 상태를 보여주는 로직. 이거 없으면 새로고침해야 적용된거 보임.
     };
 
-    // 수정 삭제 기능
-    $('#menu-list').addEventListener('click', (e) => {
-        if (e.target.classList.contains('menu-edit-button')) {
-            updateMenuName(e);
-            return; // return을 해주면 불필요한 연산을 하지 않는다.
-        }
-        if (e.target.classList.contains('menu-remove-button')) {
-            if (confirm('정말 삭제하시겠습니까?')) {
-                // 확인 버튼을 누르면 true 리턴.
-                removeMenuName(e);
+    const initEventListeners = () => {
+        // 수정 삭제 기능
+        $('#menu-list').addEventListener('click', (e) => {
+            if (e.target.classList.contains('menu-edit-button')) {
+                updateMenuName(e);
+                return; // return을 해주면 불필요한 연산을 하지 않는다.
             }
-            return;
-        }
-        if (e.target.classList.contains('menu-sold-out-button')) {
-            soldOutMenu(e);
-            return;
-        }
-    });
+            if (e.target.classList.contains('menu-remove-button')) {
+                if (confirm('정말 삭제하시겠습니까?')) {
+                    // 확인 버튼을 누르면 true 리턴.
+                    removeMenuName(e);
+                }
+                return;
+            }
+            if (e.target.classList.contains('menu-sold-out-button')) {
+                soldOutMenu(e);
+                return;
+            }
+        });
 
-    // form 태그가 자동으로 전송되는걸 막아준다.
-    $('#menu-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-    });
+        // form 태그가 자동으로 전송되는걸 막아준다.
+        $('#menu-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+        });
 
-    $('#menu-submit-button').addEventListener('click', addMenuName);
-    // 이벤트 객체를 사용하지 않을 땐 이렇게 줄여서 써도 됨.
+        $('#menu-submit-button').addEventListener('click', addMenuName);
+        // 이벤트 객체를 사용하지 않을 땐 이렇게 줄여서 써도 됨.
 
-    // 입력 기능
-    $('#menu-name').addEventListener('keypress', (e) => {
-        if (e.key !== 'Enter') {
-            //enter이라고 치면 안됨.
-            return;
-        }
+        // 입력 기능
+        $('#menu-name').addEventListener('keypress', (e) => {
+            if (e.key !== 'Enter') {
+                //enter이라고 치면 안됨.
+                return;
+            }
 
-        if (e.key === 'Enter') {
-            addMenuName();
-        }
-    });
+            if (e.key === 'Enter') {
+                addMenuName();
+            }
+        });
 
-    $('nav').addEventListener('click', (e) => {
-        // 메뉴 사이의 빈 공간을 눌러도 e가 들어옴. 예외처리
-        const isCategoryButton = e.target.classList.contains('cafe-category-name'); // bool값으로 리턴되기 때문에.
-        if (isCategoryButton) {
-            const categoryName = e.target.dataset.categoryName;
-            this.currentCategory = categoryName;
-            $('#category-title').innerText = `${e.target.innerText} 메뉴 관리`;
-            render();
-        }
-    });
+        $('nav').addEventListener('click', (e) => {
+            // 메뉴 사이의 빈 공간을 눌러도 e가 들어옴. 예외처리
+            const isCategoryButton = e.target.classList.contains('cafe-category-name'); // bool값으로 리턴되기 때문에.
+            if (isCategoryButton) {
+                const categoryName = e.target.dataset.categoryName;
+                this.currentCategory = categoryName;
+                $('#category-title').innerText = `${e.target.innerText} 메뉴 관리`;
+                render();
+            }
+        });
+    };
 }
 
 const app = new App();
 app.init();
+// 파일명 짓기 어려워지므로 파일 하나엔 하나의 객체만 있는게 좋다. => 파일 분리
 
 // refactoring
 // 재사용하는 함수는 한 곳에 모아주기
