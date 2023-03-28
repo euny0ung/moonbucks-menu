@@ -25,14 +25,16 @@
 
 // TODO 카테고리별 메뉴판 관리
 // - [x] 에스프레소 메뉴판 관리
-// - [] 프라푸치노 메뉴판 관리
-// - [] 블렌디드 메뉴판 관리
-// - [] 티바나 메뉴판 관리
-// - [] 디저트 메뉴판 관리
+// - [x] 프라푸치노 메뉴판 관리
+// - [x] 블렌디드 메뉴판 관리
+// - [x] 티바나 메뉴판 관리
+// - [x] 디저트 메뉴판 관리
 
 // TODO 페이지 접근시 최초 데이터 Read & Rendering
-// - [] 페이지에 최초로 로딩될 때 localStorage에 에스프레소 메뉴를 읽어온다.
-// - [] 에스프레소 메뉴를 페이지에 그려준다.
+// - [x] 페이지에 최초로 로딩될 때 localStorage에 에스프레소 메뉴를 읽어온다.
+// - [x] 에스프레소 메뉴를 페이지에 그려준다.
+
+// TODO 품절 상태 관리
 // - [] 품절 상태인 경우를 보여줄 수 있게, 품절 버튼을 추가하고 sold-out class를 추가하여 상태를 변경한다.
 // - [] 품절 버튼을 클릭하면 localStorage에 상태값이 저장된다.
 // - [] 클릭 이벤트에서 가장 가까운 li태그의 class 속성 값에 sold-out을 추가한다.
@@ -73,9 +75,18 @@ function App() {
 
     const render = () => {
         const template = this.menu[this.currentCategory]
+            // ? 식을 이용하여 soldOut이 true면 class에 sold-out을 추가하고 그렇지 않으면 아무것도 추가 안함.
             .map((menuItem, index) => {
-                return `<li data-menu-id="${index}" class="menu-list-item d-flex items-center py-2"><span class="w-100 pl-2 menu-name">
+                return `<li data-menu-id="${index}" class="menu-list-item d-flex items-center py-2"><span class="w-100 pl-2 menu-name ${
+                    menuItem.soldOut ? 'sold-out' : ''
+                }">
       ${menuItem.name}</span>
+      <button
+        type="button"
+        class="bg-gray-50 text-gray-500 text-sm mr-1 menu-sold-out-button"
+        >
+        품절
+        </button>
       <button
       type="button"
       class="bg-gray-50 text-gray-500 text-sm mr-1 menu-edit-button"
@@ -139,16 +150,29 @@ function App() {
         updateMenuCount();
     };
 
+    const soldOutMenu = (e) => {
+        const menuId = e.target.closest('li').dataset.menuId;
+        this.menu[this.currentCategory][menuId].soldOut = !this.menu[this.currentCategory][menuId].soldOut; // 처음엔 undefined의 부정이므로 true가 됨.
+        store.setLocalStorage(this.menu);
+        render(); // soldout된 상태를 보여주는 로직. 이거 없으면 새로고침해야 적용된거 보임.
+    };
+
     // 수정 삭제 기능
     $('#menu-list').addEventListener('click', (e) => {
         if (e.target.classList.contains('menu-edit-button')) {
             updateMenuName(e);
+            return; // return을 해주면 불필요한 연산을 하지 않는다.
         }
         if (e.target.classList.contains('menu-remove-button')) {
             if (confirm('정말 삭제하시겠습니까?')) {
                 // 확인 버튼을 누르면 true 리턴.
                 removeMenuName(e);
             }
+            return;
+        }
+        if (e.target.classList.contains('menu-sold-out-button')) {
+            soldOutMenu(e);
+            return;
         }
     });
 
