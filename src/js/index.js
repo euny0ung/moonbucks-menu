@@ -35,12 +35,78 @@
 // - [x] 에스프레소 메뉴를 페이지에 그려준다.
 
 // TODO 품절 상태 관리
-// - [] 품절 상태인 경우를 보여줄 수 있게, 품절 버튼을 추가하고 sold-out class를 추가하여 상태를 변경한다.
-// - [] 품절 버튼을 클릭하면 localStorage에 상태값이 저장된다.
-// - [] 클릭 이벤트에서 가장 가까운 li태그의 class 속성 값에 sold-out을 추가한다.
+// - [x] 품절 상태인 경우를 보여줄 수 있게, 품절 버튼을 추가하고 sold-out class를 추가하여 상태를 변경한다.
+// - [x] 품절 버튼을 클릭하면 localStorage에 상태값이 저장된다.
+// - [x] 클릭 이벤트에서 가장 가까운 li태그의 class 속성 값에 sold-out을 추가한다.
+
+// TODO 서버 요청 부분
+// -[x] 웹 서버를 띄운다
+// -[x] 서버에 새로운 메뉴가 추가될 수 있게 요청한다.
+// -[x] 서버에 카테고리별 메뉴리스트를 불러온다.
+// -[x] 서버에 메뉴가 수정될 수 있도록 요청한다.
+// -[x] 서버에 메뉴의 품절상태가 토글될 수 있도록 요청한다.
+// -[] 서버에 메뉴가 삭제 될 수 있도록 요청한다.
+
+// TODO 리팩터링 부분
+// -[x] localStorage에 저장하는 로직은 지운다.
+// -[x] fetch 비동기 api를 사용하는 부분을 async await을 사용하여 구현한다.
+
+// TODO 사용자 경험
+// -[] API 통신이 실패하는 경우에 대해 사용자가 알 수 있게 alert으로 예외처리를 진행한다.
+// -[] 중복되는 메뉴는 추가할 수 없다.
+
+const BASE_URL = 'http://localhost:3000/api';
+
+const MenuApi = {
+    async getAllMenuByCategory(category) {
+        const response = await fetch(`${BASE_URL}/category/${category}/menu`);
+        return response.json();
+    },
+    async createMenu(category, name) {
+        const response = await fetch(`${BASE_URL}/category/${category}/menu`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json', //대부분 json 형태
+            },
+            body: JSON.stringify({ name }), // key value값을 넣어서 요청
+        });
+        if (!response.ok) {
+            console.error('에러가 발생했습니다.');
+        } // response의 상태를 확인하려면 ok 속성사용.
+    },
+    async updateMenu(catagory, name, menuID) {
+        const response = await fetch(`${BASE_URL}/category/${catagory}/menu/${menuID}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name }),
+        });
+        if (!response.ok) {
+            console.error('에러가 발생했습니다.');
+        }
+        return response.json();
+    },
+    async toggleSoldOutMenu(category, menuId) {
+        const response = await fetch(`${BASE_URL}/category/${category}/menu/${menuId}/soldout`, {
+            method: 'PUT',
+        });
+        if (!response.ok) {
+            console.error('에러가 발생했습니다.');
+        }
+    },
+    async deleteMenu(category, menuId) {
+        const response = await fetch(`${BASE_URL}/category/${category}/menu/${menuId}`, {
+            method: 'DELETE',
+        });
+        if (!response.ok) {
+            console.error('에러가 발생했습니다.');
+        }
+    },
+};
 
 import { $ } from './utils/dom.js';
-import store from './store/index.js';
+// import store from './store/index.js';
 
 function App() {
     // 상태(변할 수 있는 데이터) - 메뉴명 (개수는 굳이 저장하고 읽어오며 관리할 대상이 아님)
@@ -55,11 +121,9 @@ function App() {
 
     this.currentCategory = 'espresso'; // 현재 어떤 카테고리인지 상태값으로 관리.
 
-    this.init = () => {
-        if (store.getLocalStorage()) {
-            // 객체의 길이를 바로 구하려하면 문제가 됨. 따라서 삭제.
-            this.menu = store.getLocalStorage();
-        }
+    this.init = async () => {
+        this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(this.currentCategory);
+
         render();
         initEventListeners(); // 초기화할때 render와 이벤트 리스너 실행
     };
@@ -68,8 +132,10 @@ function App() {
         const template = this.menu[this.currentCategory]
             // ? 식을 이용하여 soldOut이 true면 class에 sold-out을 추가하고 그렇지 않으면 아무것도 추가 안함.
             .map((menuItem, index) => {
-                return `<li data-menu-id="${index}" class="menu-list-item d-flex items-center py-2"><span class="w-100 pl-2 menu-name ${
-                    menuItem.soldOut ? 'sold-out' : ''
+                return `<li data-menu-id="${
+                    menuItem.id
+                }" class="menu-list-item d-flex items-center py-2"><span class="w-100 pl-2 menu-name ${
+                    menuItem.isSoldOut ? 'sold-out' : ''
                 }">
       ${menuItem.name}</span>
       <button
@@ -104,20 +170,22 @@ function App() {
         $('.menu-count').innerText = `총 ${menuCount}개`;
     };
 
-    const addMenuName = () => {
+    const addMenuName = async () => {
         if ($('#menu-name').value === '') {
             alert('값을 입력해주세요.');
             return;
         }
 
         const menuName = $('#menu-name').value;
-        this.menu[this.currentCategory].push({ name: menuName }); // 에스프레소 키값에 value를 넣어주는 형태로 변경.
-        store.setLocalStorage(this.menu); // 상태가 변경되면 바로 저장하기.
+
+        await MenuApi.createMenu(this.currentCategory, menuName);
+
+        this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(this.currentCategory);
         render();
         $('#menu-name').value = ''; // 입력창을 비워줌.
     };
 
-    const updateMenuName = (e) => {
+    const updateMenuName = async (e) => {
         // addMenuName과 통일성
         // html 코드에 수정 버튼이 없으므로 이벤트 위임함.
         // class를 배열처럼 가져올 수 있는 classList 메서드. contains 메서드는 해당 클래스 name이 있는지 확인.
@@ -126,24 +194,28 @@ function App() {
         const $menuName = e.target.closest('li').querySelector('.menu-name');
         // 가장 가까운 li태그 가져오기.
         const updatedMenuName = prompt('메뉴명을 수정해주세요', $menuName.innerText);
-        this.menu[this.currentCategory][menuId].name = updatedMenuName;
-        store.setLocalStorage(this.menu);
+        await MenuApi.updateMenu(this.currentCategory, updatedMenuName, menuId);
+        this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(this.currentCategory); // 이거 없으면 수정만 되고 불러오지 않음.
         render();
         // 변수명이 길어도 의미가 명확하면 괜찮다.
     };
 
-    const removeMenuName = (e) => {
+    const removeMenuName = async (e) => {
         const menuId = e.target.closest('li').dataset.menuId;
-        this.menu[this.currentCategory].splice(menuId, 1); // 배열의 특정 원소를 삭제하는 메소드. 삭제 후 결과를 반환한다.
+        await MenuApi.deleteMenu(this.currentCategory, menuId);
+        this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(this.currentCategory);
+        // this.menu[this.currentCategory].splice(menuId, 1); // 배열의 특정 원소를 삭제하는 메소드. 삭제 후 결과를 반환한다.
         // const a = this.menu.splice(menuId,1) 이렇게 하면 삭제된 원소가 반환됨.
-        store.setLocalStorage(this.menu);
+        // store.setLocalStorage(this.menu);
         render();
     };
 
-    const soldOutMenu = (e) => {
+    const soldOutMenu = async (e) => {
         const menuId = e.target.closest('li').dataset.menuId;
-        this.menu[this.currentCategory][menuId].soldOut = !this.menu[this.currentCategory][menuId].soldOut; // 처음엔 undefined의 부정이므로 true가 됨.
-        store.setLocalStorage(this.menu);
+        await MenuApi.toggleSoldOutMenu(this.currentCategory, menuId);
+        this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(this.currentCategory);
+        // this.menu[this.currentCategory][menuId].soldOut = !this.menu[this.currentCategory][menuId].soldOut; // 처음엔 undefined의 부정이므로 true가 됨.
+        // store.setLocalStorage(this.menu);
         render(); // soldout된 상태를 보여주는 로직. 이거 없으면 새로고침해야 적용된거 보임.
     };
 
@@ -187,13 +259,14 @@ function App() {
             }
         });
 
-        $('nav').addEventListener('click', (e) => {
+        $('nav').addEventListener('click', async (e) => {
             // 메뉴 사이의 빈 공간을 눌러도 e가 들어옴. 예외처리
             const isCategoryButton = e.target.classList.contains('cafe-category-name'); // bool값으로 리턴되기 때문에.
             if (isCategoryButton) {
                 const categoryName = e.target.dataset.categoryName;
                 this.currentCategory = categoryName;
                 $('#category-title').innerText = `${e.target.innerText} 메뉴 관리`;
+                this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(this.currentCategory);
                 render();
             }
         });
